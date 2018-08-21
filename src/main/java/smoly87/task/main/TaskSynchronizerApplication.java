@@ -10,7 +10,5 @@ public class TaskSynchronizerApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(TaskSynchronizerApplication.class, args);
-		/*TaskSynchoronizer sync = new TaskSynchoronizer();
-		sync.testQuery();*/
 	}
 }

@@ -33,7 +33,7 @@ public class TaskSynchoronizerService {
         tableSynchronisers.add(new DeleteSynchronizer(table1, table2));
     }
     
-    @Scheduled(fixedRate = 2000)
+    @Scheduled(fixedRate = 1000)
     @Transactional
     public void synchronizationDaemon(){
         synchroniseData();
