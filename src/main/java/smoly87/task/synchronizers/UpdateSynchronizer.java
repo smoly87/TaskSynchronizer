@@ -6,10 +6,7 @@
 package smoly87.task.synchronizers;
 
 
-import java.util.LinkedList;
-import java.util.List;
-import javax.persistence.Query;
-import static smoly87.task.main.SQLStringUtils.LINE_SEPARATOR;
+import static smoly87.task.main.StringUtils.LINE_SEPARATOR;
 /**
  *
  * @author Andrey

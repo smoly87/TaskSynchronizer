@@ -9,6 +9,7 @@ package smoly87.task.main;
  *
  * @author Andrey
  */
-public class TestSqlUtils {
-    
+public class StringUtils {
+     public final static String LINE_SEPARATOR = "\n"; 
+     public final static String SQL_COMMAND_SEPARATOR = ";"; 
 }

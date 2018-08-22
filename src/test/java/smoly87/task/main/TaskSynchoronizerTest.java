@@ -28,7 +28,7 @@ import javax.persistence.Query;
 
 import org.springframework.transaction.PlatformTransactionManager;
 
-import static smoly87.task.main.SQLStringUtils.LINE_SEPARATOR;
+import static smoly87.task.main.StringUtils.LINE_SEPARATOR;
 /**
  *
  * @author Andrey
@@ -80,10 +80,13 @@ public class TaskSynchoronizerTest {
     }
 
     protected void testUpdateSync(String sourceOfChangesTable) throws InterruptedException{
+        TableSizeChecker tableSizeChecker = createTableSizeChecker();
         taskSync.setRevisionDateByRecords();
         updateRecord(sourceOfChangesTable, ID_FOR_UPDATE, "Task_", "Description_" );    
         delay();
         taskSync.synchronizeTables();
+        assertEquals(true, isDifferenceEqualsTo(0, tableSizeChecker));
+        assertEquals(0, getDifferRowsCount());
         
     } 
     @Transactional
@@ -104,14 +107,14 @@ public class TaskSynchoronizerTest {
     @Transactional
     public void testUpdateSyncMainIsTaskDefinition() throws InterruptedException, SQLException{ 
         testUpdateSync(taskSync.getMainTable());
-        assertEquals(0, getDifferRowsCount());
+
     }
     
     @Test
     @Transactional
     public void testUpdateSyncMainIsTaskDefinitionMirror() throws InterruptedException, SQLException{ 
         testUpdateSync(taskSync.getSubordinateTable());
-        assertEquals(0, getDifferRowsCount());
+
     }
     
     /*This is Update case new test, which we disscused.
@@ -160,50 +163,51 @@ public class TaskSynchoronizerTest {
     @Transactional
     public void testInsertSync() throws InterruptedException{ 
         //Insert record to one table only
-      
-       
        testInsert(taskSync.getMainTable());
-       
-       int tableSizeAfter = getTableSize(taskSync.getMainTable());
-       assertEquals(0, getDifferRowsCount());
     }
     
     @Test	
     @Transactional
     public void testInsertMirrorSync() throws InterruptedException{ 
         //Insert record to one table only
-       testInsert("Task_Definition_Mirror");
-       assertEquals(0, getDifferRowsCount());
+       testInsert(taskSync.getSubordinateTable());
+
     }
     
     protected void testInsert(String tableName) throws InterruptedException{
+        TableSizeChecker tableSizeChecker = this.createTableSizeChecker();
         delay();
         String query = getInsertQuery("@table", 3,  "Task3", "Description3");
         executeQueryWithSync(tableName, query);
+        //Size of both table should be increased on 1
+        assertEquals(true, isDifferenceEqualsTo(1, tableSizeChecker));
+        assertEquals(0, getDifferRowsCount());
     }
     
     @Test
     @Transactional
     public void testDeleteSync() throws InterruptedException{ 
         //Delete record from one table only
-        testDelete("Task_Definition_Mirror");
-        assertEquals(0, getDifferRowsCount());
+        testDelete(taskSync.getMainTable());
     }
     
     @Test
     @Transactional
     public void testDeleteSyncMirror() throws InterruptedException{ 
         //Delete record from one table only
-        testDelete("Task_Definition_Mirror");
-        assertEquals(0, getDifferRowsCount());
+        testDelete(taskSync.getSubordinateTable());
     }
     
     protected void testDelete(String tableName) throws InterruptedException{
+        TableSizeChecker tableSizeChecker = this.createTableSizeChecker();
         taskSync.setRevisionDateByRecords();
         delay();
         String query = "DELETE FROM @table Where id = :id";
         executeQuery(tableName, query, 2);
         taskSync.synchronizeTables();
+        //Table size of both tables should be decreased one 1, because one record is out
+        assertEquals(true, isDifferenceEqualsTo(-1, tableSizeChecker));
+        assertEquals(0, getDifferRowsCount());
     }
    
     protected Query createQuery(String table, String query){
@@ -216,8 +220,8 @@ public class TaskSynchoronizerTest {
         createQuery(table, query)
                 .setParameter("id", id)
                 .executeUpdate();
-    }
     
+    }
     @Transactional
     protected void executeQuery(String table, String query){
         createQuery(table, query)
@@ -234,6 +238,20 @@ public class TaskSynchoronizerTest {
        String query = String.format("SELECT COUNT(id) FROM %s", tableName);
        BigInteger res = (BigInteger) em.createNativeQuery(query).getSingleResult();
        return res.intValue();
+    }
+    
+    
+    protected TableSizeChecker createTableSizeChecker(){
+        return new TableSizeChecker(getTableSize(taskSync.getMainTable()), 
+                                    getTableSize(taskSync.getSubordinateTable()));
+    }
+    
+    protected boolean isDifferenceEqualsTo(int delta,TableSizeChecker tableSizeChecker){
+        return tableSizeChecker.isDifferenceEqualsAndEqualToDelta(
+                             getTableSize(taskSync.getMainTable()), 
+                             getTableSize(taskSync.getSubordinateTable()), 
+                             delta
+        );
     }
     
     protected int getDifferRowsCount(){

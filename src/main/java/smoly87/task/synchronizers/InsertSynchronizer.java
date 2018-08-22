@@ -4,7 +4,7 @@
  * and open the template in the editor.
  */
 package smoly87.task.synchronizers;
-import static smoly87.task.main.SQLStringUtils.LINE_SEPARATOR;
+import static smoly87.task.main.StringUtils.LINE_SEPARATOR;
 /**
  *
  * @author Andrey
