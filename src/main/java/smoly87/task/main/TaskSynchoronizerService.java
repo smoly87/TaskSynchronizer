@@ -9,6 +9,7 @@ import javax.persistence.*;
 import javax.transaction.Transactional;
 import java.util.Date;
 import java.util.LinkedList;
+import java.util.List;
 
 
 import smoly87.task.synchronizers.DeleteSynchronizer;
@@ -20,54 +21,88 @@ import smoly87.task.synchronizers.UpdateSynchronizer;
 public class TaskSynchoronizerService {
 
     protected LinkedList<TableSynchronizer> tableSynchronisers;
-    protected String table1 = "TASK_DEFINITION";
-    protected String table2 = "TASK_DEFINITION_MIRROR";
+    protected final String mainTable = "TASK_DEFINITION";
+
+    public String getMainTable() {
+        return mainTable;
+    }
+
+    public String getSubordinateTable() {
+        return subordinateTable;
+    }
+    protected final String subordinateTable = "TASK_DEFINITION_MIRROR";
     protected Date revisionDate;
+
+    public Date getRevisionDate() {
+        return revisionDate;
+    }
+
+    public void setRevisionDate(Date revisionDate) {
+        this.revisionDate = revisionDate;
+    }
     @Autowired
     private EntityManager em;
     
     public TaskSynchoronizerService() {
         tableSynchronisers = new LinkedList<>();
-        tableSynchronisers.add(new UpdateSynchronizer(table1, table2));
-        tableSynchronisers.add(new InsertSynchronizer(table1, table2));
-        tableSynchronisers.add(new DeleteSynchronizer(table1, table2));
+        tableSynchronisers.add(new UpdateSynchronizer(mainTable, subordinateTable));
+        tableSynchronisers.add(new InsertSynchronizer(mainTable, subordinateTable));
+        tableSynchronisers.add(new DeleteSynchronizer(mainTable, subordinateTable));
     }
     
     @Scheduled(fixedRate = 1000)
     @Transactional
     public void synchronizationDaemon(){
-        synchroniseData();
+        //synchronizeTables();
     }
     
     protected void executeQuery(TableSynchronizer synchroniser, String mainTable, String subordinateTable){
-        String query = synchroniser.getQuery(table1, table2);
+        String query = synchroniser.getQuery(mainTable, subordinateTable);
         em.createNativeQuery(query)
           .setParameter("revision_date", revisionDate)
           .executeUpdate();
     }
     
     @Transactional
-    public void synchroniseData(){
-         synchroniseTables();
-         setSynchronisationDate("TASK_DEFINITION");
-         setSynchronisationDate("TASK_DEFINITION_MIRROR");
+    public void synchronizeTables(){
+         performSynchronizers();
+         setSynchronisationDate(mainTable);
+         setSynchronisationDate(subordinateTable);
          revisionDate = (Date) em.createNativeQuery("SELECT CURRENT_TIMESTAMP").getSingleResult();
     }
     
     @Transactional
-    public void setRevisionDateByRecords(){
-        revisionDate = (Date) em.createNativeQuery("SELECT MAX(LAST_MODIFIED) FROM TASK_DEFINITION").getSingleResult();
+    public Date getMaxDateByRecords(){
+        String query = "SELECT MAX(last_modified) FROM task_definition  UNION SELECT MAX(last_modified) FROM task_definition_mirror";
+        
+        List <Date> itemsList = em.createNativeQuery(query).getResultList();
+        Date maxDate = null;
+        
+        for(Date curValue : itemsList){     
+            if(maxDate != null){
+               if(curValue.compareTo(maxDate) > 0){
+                  maxDate = curValue;
+               }
+            } else{
+                maxDate = curValue;
+            }
+        }
+        return maxDate;
     }
-    
+     
+    public void setRevisionDateByRecords(){
+       revisionDate = getMaxDateByRecords();
+        
+    }
     public void setSynchronisationDate(String tableName){
         em.createNativeQuery(String.format("UPDATE %s SET LAST_MODIFIED=CURRENT_TIME()", tableName))
           .executeUpdate();
     }
     
-    protected void synchroniseTables(){
+    protected void performSynchronizers(){
         for(TableSynchronizer synchroniser:tableSynchronisers){
             synchroniser.setParams(em, revisionDate);
-            synchroniser.synchronisation();
+            synchroniser.synchronizeTablesBidirectional();
         }
     }
 

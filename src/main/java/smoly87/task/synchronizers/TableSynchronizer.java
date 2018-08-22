@@ -5,29 +5,28 @@ import javax.persistence.EntityManager;
 import javax.persistence.Query;
 
 public abstract class TableSynchronizer {
-    protected boolean useIdsExclusionCondititon = false;
-    protected abstract String getQueryString();
-    protected String table1;
-    protected String table2;
-    protected  EntityManager em;
-    protected Date revisionDate;
 
-    public TableSynchronizer( String table1, String table2) {
-        this.table1 = table1;
-        this.table2 = table2;
+    protected abstract String getQueryString();
+    protected String mainTable;
+    protected String subordinateTable;
+    protected EntityManager em;
+    protected Date revisionDate;
+       
+    public TableSynchronizer( String mainTable, String subordinateTable) {
+        this.mainTable = mainTable;
+        this.subordinateTable = subordinateTable;
 
     }
     
     protected String processQuery(String query, String mainTable, String subordinateTable){
-        String res = query.replace("@t1", mainTable);
-        res = res.replace("@t2", subordinateTable);
+        String res = query.replace("@mainTable", mainTable);
+        res = res.replace("@subordinateTable", subordinateTable);
         return res;
     }
     
     public String getQuery(String mainTable, String subordinateTable){
         String queryStr = getQueryString();
         return processQuery(queryStr, mainTable, subordinateTable);
-
     }
     
     public void setParams(EntityManager em, Date revisionDate){
@@ -35,9 +34,9 @@ public abstract class TableSynchronizer {
          this.em = em;
     }
     
-    public void synchronisation(){
-        executeQuery(table1, table2);
-        executeQuery(table2, table1);
+    public void synchronizeTablesBidirectional(){
+        synchronizeTables(mainTable, subordinateTable);
+        synchronizeTables(subordinateTable, mainTable);
     }
         
     protected Query createQuerySetParams(String query){ 
@@ -46,9 +45,8 @@ public abstract class TableSynchronizer {
         return queryObj;
     }
      
-    public void executeQuery(String mainTable, String subordinateTable){
+    public void synchronizeTables(String mainTable, String subordinateTable){
         String query = getQuery(mainTable, subordinateTable);
-       
         createQuerySetParams(query).executeUpdate();
     }
 }

@@ -12,8 +12,8 @@ import javax.persistence.Query;
  */
 public class DeleteSynchronizer extends TableSynchronizer{
 
-    public DeleteSynchronizer(String table1, String table2) {
-        super(table1, table2);
+    public DeleteSynchronizer(String mainTable, String subordinateTable) {
+        super(mainTable, subordinateTable);
     }
 
     @Override
@@ -25,9 +25,9 @@ public class DeleteSynchronizer extends TableSynchronizer{
     @Override
     protected String getQueryString() {
          String s = String.join("\n",
-               "DELETE from @t1",
-               "WHERE @t1.id IN ",
-               "(SELECT a.id FROM @t1 as a LEFT  JOIN @t2 as b ON a.id = b.id Where b.id IS null )" //and a.LAST_MODIFIED <= :revision_date
+               "DELETE from @mainTable",
+               "WHERE @mainTable.id IN ",
+               "(SELECT a.id FROM @mainTable as a LEFT  JOIN @subordinateTable as b ON a.id = b.id Where b.id IS null )"
          );
          return s;
     }
