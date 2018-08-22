@@ -24,11 +24,10 @@ import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
-import javax.persistence.Query;
-
 import org.springframework.transaction.PlatformTransactionManager;
 
-import static smoly87.task.main.StringUtils.LINE_SEPARATOR;
+import static smoly87.task.main.TestSqlUtils.*;
+
 /**
  *
  * @author Andrey
@@ -38,7 +37,7 @@ import static smoly87.task.main.StringUtils.LINE_SEPARATOR;
 public class TaskSynchoronizerTest {    
     protected final int DELAY_MS = 100;
     protected final Integer ID_FOR_UPDATE = 2;
-    
+    protected final int ID_FOR_INSERT = 3;
     @Autowired
     TaskSynchoronizerService taskSync;
 
@@ -61,6 +60,7 @@ public class TaskSynchoronizerTest {
     @Before
 
     public void setUp() {
+        TestSqlUtils.setEm(em);
         prepareTables();
     }
    
@@ -86,9 +86,9 @@ public class TaskSynchoronizerTest {
         delay();
         taskSync.synchronizeTables();
         assertEquals(true, isDifferenceEqualsTo(0, tableSizeChecker));
-        assertEquals(0, getDifferRowsCount());
-        
+        assertEquals(0, getDifferRowsCount()); 
     } 
+    
     @Transactional
     protected void updateRecord(String sourceOfChangesTable, int id, String Name, String Description){
        Date initDate = taskSync.getMaxDateByRecords();
@@ -102,12 +102,23 @@ public class TaskSynchoronizerTest {
                 .executeUpdate();
     }
     
-
+    @Transactional
+    protected void insertRecord(String sourceOfChangesTable, int id, String Name, String Description){
+       Date initDate = taskSync.getMaxDateByRecords();
+       String query = "INSERT INTO @table(Id, Name, Description, Last_Modified) VALUES(:id, :name, :description, DATEADD('MILLISECOND', +:delay, :init_date))";
+         createQuery(sourceOfChangesTable, query)
+                .setParameter("id", id)
+                .setParameter("name", Name) 
+                .setParameter("description", Description) 
+                .setParameter("init_date", initDate)
+                .setParameter("delay", DELAY_MS / 2)
+                .executeUpdate();
+    }
+    
     @Test
     @Transactional
     public void testUpdateSyncMainIsTaskDefinition() throws InterruptedException, SQLException{ 
         testUpdateSync(taskSync.getMainTable());
-
     }
     
     @Test
@@ -162,23 +173,23 @@ public class TaskSynchoronizerTest {
     @Test	
     @Transactional
     public void testInsertSync() throws InterruptedException{ 
-        //Insert record to one table only
        testInsert(taskSync.getMainTable());
     }
     
     @Test	
     @Transactional
     public void testInsertMirrorSync() throws InterruptedException{ 
-        //Insert record to one table only
        testInsert(taskSync.getSubordinateTable());
 
     }
     
     protected void testInsert(String tableName) throws InterruptedException{
+        taskSync.setRevisionDateByRecords();
         TableSizeChecker tableSizeChecker = this.createTableSizeChecker();
+        //Insert record to one table only
+        insertRecord(tableName, ID_FOR_INSERT,  "Task3", "Description3");
         delay();
-        String query = getInsertQuery("@table", 3,  "Task3", "Description3");
-        executeQueryWithSync(tableName, query);
+        taskSync.synchronizeTables();
         //Size of both table should be increased on 1
         assertEquals(true, isDifferenceEqualsTo(1, tableSizeChecker));
         assertEquals(0, getDifferRowsCount());
@@ -187,14 +198,12 @@ public class TaskSynchoronizerTest {
     @Test
     @Transactional
     public void testDeleteSync() throws InterruptedException{ 
-        //Delete record from one table only
         testDelete(taskSync.getMainTable());
     }
     
     @Test
     @Transactional
     public void testDeleteSyncMirror() throws InterruptedException{ 
-        //Delete record from one table only
         testDelete(taskSync.getSubordinateTable());
     }
     
@@ -202,6 +211,7 @@ public class TaskSynchoronizerTest {
         TableSizeChecker tableSizeChecker = this.createTableSizeChecker();
         taskSync.setRevisionDateByRecords();
         delay();
+        //Delete record from one table only
         String query = "DELETE FROM @table Where id = :id";
         executeQuery(tableName, query, 2);
         taskSync.synchronizeTables();
@@ -210,23 +220,8 @@ public class TaskSynchoronizerTest {
         assertEquals(0, getDifferRowsCount());
     }
    
-    protected Query createQuery(String table, String query){
-       query = query.replace("@table", table) ;
-       return em.createNativeQuery(query);
-    }
-    
-    @Transactional
-    protected void executeQuery(String table, String query, int id){
-        createQuery(table, query)
-                .setParameter("id", id)
-                .executeUpdate();
-    
-    }
-    @Transactional
-    protected void executeQuery(String table, String query){
-        createQuery(table, query)
-                .executeUpdate();
-    
+    protected int getDifferRowsCount(){
+        return TestSqlUtils.getDifferRowsCount(taskSync.getMainTable(), taskSync.getSubordinateTable());
     }
     
     protected void executeQueryWithSync(String table, String query){
@@ -234,13 +229,7 @@ public class TaskSynchoronizerTest {
         taskSync.synchronizeTables();
     }
     
-    protected int getTableSize(String tableName){
-       String query = String.format("SELECT COUNT(id) FROM %s", tableName);
-       BigInteger res = (BigInteger) em.createNativeQuery(query).getSingleResult();
-       return res.intValue();
-    }
-    
-    
+ 
     protected TableSizeChecker createTableSizeChecker(){
         return new TableSizeChecker(getTableSize(taskSync.getMainTable()), 
                                     getTableSize(taskSync.getSubordinateTable()));
@@ -254,15 +243,6 @@ public class TaskSynchoronizerTest {
         );
     }
     
-    protected int getDifferRowsCount(){
-        
-        String query = String.join(LINE_SEPARATOR,
-          "SELECT a.ID FROM task_definition as a LEFT  JOIN task_definition_MIRROR as b ON a.id = b.id Where b.id IS null UNION",
-          "SELECT a.ID FROM task_definition_MIRROR as a LEFT  JOIN task_definition as b ON a.id = b.id Where b.id IS null UNION",
-          "SELECT a.id FROM task_definition as a JOIN task_definition_MIRROR as b ON a.id = b.id WHERE a.Name != b.Name OR a.Description != b.Description");
-        return em.createNativeQuery(query).getResultList().size();
-    }
-
     protected void clearTables(){
          String query = String.join(";",
               String.format("TRUNCATE Table %s", taskSync.getMainTable()),
@@ -277,9 +257,5 @@ public class TaskSynchoronizerTest {
               getInsertQuery(table, 2, "Task2", "Description2")
          );
          em.createNativeQuery(query).executeUpdate();
-    }
-    
-    protected String getInsertQuery(String table,int id, String Name, String Description){
-        return String.format("INSERT into %s(Id, Name, Description) VALUES(%d, '%s', '%s') ", table, id, Name, Description);
     }
 }

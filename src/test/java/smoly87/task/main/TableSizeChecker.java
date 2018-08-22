@@ -21,6 +21,7 @@ public class TableSizeChecker {
     public boolean isDifferenceEqualsAndEqualToDelta(int mainTableFinalSize, int subordinateTableFinalSize, int delta){
         int diffMain = mainTableFinalSize - mainTableInitSize;
         int diffSubordinate = subordinateTableFinalSize - subordinateTableInitSize;
+        System.out.println(diffMain + " :" + diffSubordinate);
         if (diffMain != diffSubordinate) return false;
         return (diffMain == delta);
     }

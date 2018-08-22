@@ -22,7 +22,11 @@ public class TaskSynchoronizerService {
 
     protected LinkedList<TableSynchronizer> tableSynchronisers;
     protected final String mainTable = "TASK_DEFINITION";
-
+    protected final String subordinateTable = "TASK_DEFINITION_MIRROR";
+    protected Date revisionDate;
+    @Autowired
+    private EntityManager em;
+    
     public String getMainTable() {
         return mainTable;
     }
@@ -30,8 +34,6 @@ public class TaskSynchoronizerService {
     public String getSubordinateTable() {
         return subordinateTable;
     }
-    protected final String subordinateTable = "TASK_DEFINITION_MIRROR";
-    protected Date revisionDate;
 
     public Date getRevisionDate() {
         return revisionDate;
@@ -40,9 +42,7 @@ public class TaskSynchoronizerService {
     public void setRevisionDate(Date revisionDate) {
         this.revisionDate = revisionDate;
     }
-    @Autowired
-    private EntityManager em;
-    
+ 
     public TaskSynchoronizerService() {
         tableSynchronisers = new LinkedList<>();
         tableSynchronisers.add(new UpdateSynchronizer(mainTable, subordinateTable));
@@ -53,7 +53,7 @@ public class TaskSynchoronizerService {
     @Scheduled(fixedRate = 1000)
     @Transactional
     public void synchronizationDaemon(){
-        //synchronizeTables();
+        synchronizeTables();
     }
     
     protected void executeQuery(TableSynchronizer synchroniser, String mainTable, String subordinateTable){
