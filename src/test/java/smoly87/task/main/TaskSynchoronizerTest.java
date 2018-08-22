@@ -128,7 +128,7 @@ public class TaskSynchoronizerTest {
 
     }
     
-    /*This is Update case new test, which we disscused.
+    /*This is Update case new test, which we discussed.
       At first we update main_table record, then mirror_table.
       As mirror_table Last_Modified will be greater, 
       so final value should be assigned to main table also.
